@@ -1,28 +1,25 @@
 import os
 import random
 import time
+
 import pygame
-from PIL import Image, ImageFilter, ImageEnhance
+from PIL import Image, ImageFilter
+import json
+
+# Load configuration from JSON file
+config_path = "config.json"
+if os.path.exists(config_path):
+    with open(config_path, "r") as f:
+        config = json.load(f)
+else:
+    raise FileNotFoundError(f"Configuration file '{config_path}' not found.")
 
 # CONFIG
-IMAGE_FOLDER = "/run/media/max/Externe/New/Bilder/Tumblr/Blogs/spiritual-natura"
-DISPLAY_TIME = 10  # seconds per image
-FADE_TIME = 2  # seconds for crossfade
-BLUR_RADIUS = 30
-TINT_OPACITY = 0.5  # 0.0 (no tint) to 1.0 (fully black)
-
-# Pygame init
-pygame.init()
-screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-SCREEN_WIDTH, SCREEN_HEIGHT = screen.get_size()
-clock = pygame.time.Clock()
-
-# Get image files
-files = [
-    os.path.join(IMAGE_FOLDER, f)
-    for f in os.listdir(IMAGE_FOLDER)
-    if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))
-]
+IMAGE_FOLDER = config.get("IMAGE_FOLDER", "/home/max/Downloads/tumblr_backup_062025/media")
+DISPLAY_TIME = config.get("DISPLAY_TIME_S", 10)  # seconds per image
+FADE_TIME = config.get("FADE_TIME_S", 2)  # seconds for crossfade
+BLUR_RADIUS = config.get("BLUR_RADIUS_PX", 30)
+TINT_OPACITY = config.get("TINT_OPACITY", 0.5)  # 0.0 (no tint) to 1.0 (fully black)
 
 
 def resize_to_fit(img):
@@ -87,7 +84,7 @@ def blend_surfaces(surf1, surf2, alpha):
     return blended
 
 
-def show_slideshow():
+def show_slideshow(files):
     prev_frames, prev_durations = load_image_data(random.choice(files))
     next_frames, next_durations = load_image_data(random.choice(files))
 
@@ -114,7 +111,6 @@ def show_slideshow():
             prev_start = time.time()
             next_frames, next_durations = load_image_data(random.choice(files))
 
-        now = time.time()
         prev_frame = prev_frames[prev_idx % len(prev_frames)]
         screen.blit(prev_frame, (0, 0))
         pygame.display.flip()
@@ -132,4 +128,19 @@ def show_slideshow():
                 exit()
 
 
-show_slideshow()
+if __name__ == "__main__":
+    # Pygame init
+    pygame.init()
+    screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+    SCREEN_WIDTH, SCREEN_HEIGHT = screen.get_size()
+    clock = pygame.time.Clock()
+
+    # Get image files
+    files = [
+        os.path.join(IMAGE_FOLDER, f)
+        for f in os.listdir(IMAGE_FOLDER)
+        if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))
+    ]
+
+    # Start slideshow
+    show_slideshow(files)
