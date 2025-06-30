@@ -1,12 +1,12 @@
+import json
 import os
 import random
+import threading
 import time
+from collections import deque
 
 import pygame
 from PIL import Image, ImageFilter
-import json
-from collections import deque
-import threading
 
 # Load configuration from JSON file
 config_path = "config.json"
@@ -117,7 +117,7 @@ def show_slideshow(files):
     # Start preloading thread
     preload_thread = threading.Thread(target=preload_worker, args=(q, files), daemon=True)
     preload_thread.start()
-    while len(q) < 2:
+    while len(q) < 5:
         time.sleep(1.0)
         print(f"Waiting for preloaded images... {len(q)} loaded")
 
@@ -152,7 +152,7 @@ def show_slideshow(files):
             prev_frames, prev_durations = next_frames, next_durations
             prev_idx = 0
             prev_start = time.time()
-            file, next_frames, next_durations = q.pop() if q else (None, [], [])
+            file, next_frames, next_durations = q.popleft()
             next_frames = [pil_to_surface(frame) for frame in next_frames]
 
         # Display the current frame
@@ -180,7 +180,11 @@ if __name__ == "__main__":
     clock = pygame.time.Clock()
 
     # Get image files
-    files = [os.path.join(IMAGE_FOLDER, f) for f in os.listdir(IMAGE_FOLDER) if f.lower().endswith((".gif"))]
+    files = [
+        os.path.join(IMAGE_FOLDER, f)
+        for f in os.listdir(IMAGE_FOLDER)
+        if f.lower().endswith((".jpg", ".jpeg", ".png", ".gif"))
+    ]
 
     # Start slideshow
     show_slideshow(files)
