@@ -1,12 +1,13 @@
 import os
 import random
 import time
+import json
 
 import pygame
 from PIL import Image, ImageFilter
-import json
+import cv2
 
-# Load configuration from JSON file
+# Load configuration
 config_path = "config.json"
 if os.path.exists(config_path):
     with open(config_path, "r") as f:
@@ -16,16 +17,16 @@ else:
 
 # CONFIG
 IMAGE_FOLDER = config.get("IMAGE_FOLDER", "/home/max/Downloads/tumblr_backup_062025/media")
-DISPLAY_TIME = config.get("DISPLAY_TIME_S", 10)  # seconds per image
-FADE_TIME = config.get("FADE_TIME_S", 2)  # seconds for crossfade
+DISPLAY_TIME = config.get("DISPLAY_TIME_S", 10)
+FADE_TIME = config.get("FADE_TIME_S", 2)
 BLUR_RADIUS = config.get("BLUR_RADIUS_PX", 30)
-TINT_OPACITY = config.get("TINT_OPACITY", 0.5)  # 0.0 (no tint) to 1.0 (fully black)
+TINT_OPACITY = config.get("TINT_OPACITY", 0.5)
 
 
+# Helper functions
 def resize_to_fit(img):
     img_ratio = img.width / img.height
     screen_ratio = SCREEN_WIDTH / SCREEN_HEIGHT
-
     if img_ratio > screen_ratio:
         new_width = SCREEN_WIDTH
         new_height = int(SCREEN_WIDTH / img_ratio)
@@ -51,29 +52,12 @@ def apply_blur_and_tint(img):
     return bg
 
 
-def load_image_data(file):
-    img = Image.open(file)
-    frames = []
-    durations = []
-
-    try:
-        while True:
-            frame = img.convert("RGB")
-            bg = apply_blur_and_tint(frame)
-            fg = resize_to_fit(frame)
-            bg.paste(fg, ((SCREEN_WIDTH - fg.width) // 2, (SCREEN_HEIGHT - fg.height) // 2))
-
-            surface = pil_to_surface(bg)
-            frames.append(surface)
-            durations.append(img.info.get("duration", 100) / 1000)
-            img.seek(img.tell() + 1)
-    except EOFError:
-        pass
-
-    if not durations:
-        durations = [DISPLAY_TIME]
-
-    return frames, durations
+def load_image_surface(file):
+    img = Image.open(file).convert("RGB")
+    bg = apply_blur_and_tint(img)
+    fg = resize_to_fit(img)
+    bg.paste(fg, ((SCREEN_WIDTH - fg.width) // 2, (SCREEN_HEIGHT - fg.height) // 2))
+    return pil_to_surface(bg)
 
 
 def blend_surfaces(surf1, surf2, alpha):
@@ -84,21 +68,103 @@ def blend_surfaces(surf1, surf2, alpha):
     return blended
 
 
+def play_video(file, next_surface=None):
+    cap = cv2.VideoCapture(file)
+    if not cap.isOpened():
+        print(f"Could not open video: {file}")
+        return
+
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30
+    frame_duration = 1 / fps
+
+    # Read first frame for crossfade
+    ret, frame = cap.read()
+    if not ret:
+        cap.release()
+        return
+
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    pil_frame = Image.fromarray(frame_rgb)
+    bg = Image.new("RGB", (SCREEN_WIDTH, SCREEN_HEIGHT), color=(0, 0, 0))
+    fg = resize_to_fit(pil_frame)
+    bg.paste(fg, ((SCREEN_WIDTH - fg.width) // 2, (SCREEN_HEIGHT - fg.height) // 2))
+    current_surface = pil_to_surface(bg)
+
+    # Crossfade in
+    fade_start = time.time()
+    while time.time() - fade_start < FADE_TIME:
+        alpha = (time.time() - fade_start) / FADE_TIME
+        if next_surface:
+            blended = blend_surfaces(next_surface, current_surface, alpha)
+        else:
+            blended = current_surface.copy()
+            blended.set_alpha(int(alpha * 255))
+        screen.blit(blended, (0, 0))
+        pygame.display.flip()
+        clock.tick(60)
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                cap.release()
+                pygame.quit()
+                exit()
+
+    # Play video frames
+    while ret:
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        pil_frame = Image.fromarray(frame_rgb)
+        bg = Image.new("RGB", (SCREEN_WIDTH, SCREEN_HEIGHT), color=(0, 0, 0))
+        fg = resize_to_fit(pil_frame)
+        bg.paste(fg, ((SCREEN_WIDTH - fg.width) // 2, (SCREEN_HEIGHT - fg.height) // 2))
+        surface = pil_to_surface(bg)
+
+        screen.blit(surface, (0, 0))
+        pygame.display.flip()
+
+        start_time = time.time()
+        while time.time() - start_time < frame_duration:
+            for event in pygame.event.get():
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    cap.release()
+                    pygame.quit()
+                    exit()
+            clock.tick(60)
+        ret, frame = cap.read()
+
+    cap.release()
+
+
 def show_slideshow(files):
-    prev_frames, prev_durations = load_image_data(random.choice(files))
-    next_frames, next_durations = load_image_data(random.choice(files))
-
-    prev_idx = 0
-    prev_start = time.time()
-
     while True:
-        if time.time() - prev_start >= DISPLAY_TIME:
+        current_file = random.choice(files)
+        ext = os.path.splitext(current_file)[1].lower()
+
+        # Preload next image surface for crossfade if applicable
+        next_file = random.choice(files)
+        next_ext = os.path.splitext(next_file)[1].lower()
+        next_surface = None
+        if next_ext not in [".mp4", ".mov", ".avi", ".mkv"]:
+            try:
+                next_surface = load_image_surface(next_file)
+            except:
+                next_surface = None
+
+        if ext in [".mp4", ".mov", ".avi", ".mkv"]:
+            play_video(current_file, next_surface)
+        else:
+            try:
+                surface = load_image_surface(current_file)
+            except:
+                continue
+
+            # Crossfade in
             fade_start = time.time()
             while time.time() - fade_start < FADE_TIME:
                 alpha = (time.time() - fade_start) / FADE_TIME
-                prev_frame = prev_frames[prev_idx % len(prev_frames)]
-                next_frame = next_frames[0]
-                blended = blend_surfaces(prev_frame, next_frame, alpha)
+                if next_surface:
+                    blended = blend_surfaces(next_surface, surface, alpha)
+                else:
+                    blended = surface.copy()
+                    blended.set_alpha(int(alpha * 255))
                 screen.blit(blended, (0, 0))
                 pygame.display.flip()
                 clock.tick(60)
@@ -106,41 +172,29 @@ def show_slideshow(files):
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                         pygame.quit()
                         exit()
-            prev_frames, prev_durations = next_frames, next_durations
-            prev_idx = 0
-            prev_start = time.time()
-            next_frames, next_durations = load_image_data(random.choice(files))
 
-        prev_frame = prev_frames[prev_idx % len(prev_frames)]
-        screen.blit(prev_frame, (0, 0))
-        pygame.display.flip()
-
-        if len(prev_frames) > 1:
-            duration = prev_durations[prev_idx % len(prev_durations)]
-            time.sleep(duration)
-            prev_idx += 1
-        else:
-            time.sleep(0.05)
-
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                pygame.quit()
-                exit()
+            # Display for DISPLAY_TIME
+            start_time = time.time()
+            while time.time() - start_time < DISPLAY_TIME:
+                screen.blit(surface, (0, 0))
+                pygame.display.flip()
+                for event in pygame.event.get():
+                    if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                        pygame.quit()
+                        exit()
+                clock.tick(60)
 
 
 if __name__ == "__main__":
-    # Pygame init
     pygame.init()
     screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
     SCREEN_WIDTH, SCREEN_HEIGHT = screen.get_size()
     clock = pygame.time.Clock()
 
-    # Get image files
     files = [
         os.path.join(IMAGE_FOLDER, f)
         for f in os.listdir(IMAGE_FOLDER)
-        if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))
+        if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".mp4", ".mov", ".avi", ".mkv"))
     ]
 
-    # Start slideshow
     show_slideshow(files)
