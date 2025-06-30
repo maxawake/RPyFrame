@@ -5,6 +5,8 @@ import time
 import pygame
 from PIL import Image, ImageFilter
 import json
+from collections import deque
+import threading
 
 # Load configuration from JSON file
 config_path = "config.json"
@@ -23,6 +25,7 @@ TINT_OPACITY = config.get("TINT_OPACITY", 0.5)  # 0.0 (no tint) to 1.0 (fully bl
 
 
 def resize_to_fit(img):
+    """Resize the image to fit the screen while maintaining aspect ratio."""
     img_ratio = img.width / img.height
     screen_ratio = SCREEN_WIDTH / SCREEN_HEIGHT
 
@@ -36,6 +39,7 @@ def resize_to_fit(img):
 
 
 def pil_to_surface(pil_image):
+    """Convert a PIL image to a Pygame surface."""
     mode = pil_image.mode
     size = pil_image.size
     data = pil_image.tobytes()
@@ -43,6 +47,7 @@ def pil_to_surface(pil_image):
 
 
 def apply_blur_and_tint(img):
+    """Apply Gaussian blur and optional tint to the image."""
     bg = img.resize((SCREEN_WIDTH, SCREEN_HEIGHT), Image.LANCZOS)
     bg = bg.filter(ImageFilter.GaussianBlur(radius=BLUR_RADIUS))
     if TINT_OPACITY > 0:
@@ -52,6 +57,9 @@ def apply_blur_and_tint(img):
 
 
 def load_image_data(file):
+    """
+    Load image data from a file.
+    """
     img = Image.open(file)
     frames = []
     durations = []
@@ -63,8 +71,7 @@ def load_image_data(file):
             fg = resize_to_fit(frame)
             bg.paste(fg, ((SCREEN_WIDTH - fg.width) // 2, (SCREEN_HEIGHT - fg.height) // 2))
 
-            surface = pil_to_surface(bg)
-            frames.append(surface)
+            frames.append(bg.copy())
             durations.append(img.info.get("duration", 100) / 1000)
             img.seek(img.tell() + 1)
     except EOFError:
@@ -77,6 +84,7 @@ def load_image_data(file):
 
 
 def blend_surfaces(surf1, surf2, alpha):
+    """Blend two surfaces with a given alpha value."""
     blended = surf1.copy()
     surf2_alpha = surf2.copy()
     surf2_alpha.set_alpha(int(alpha * 255))
@@ -84,16 +92,50 @@ def blend_surfaces(surf1, surf2, alpha):
     return blended
 
 
+def preload_worker(q, files):
+    """Worker thread to preload images into the queue."""
+    while True:
+        try:
+            file = random.choice(files)
+            frames_pil, durations = load_image_data(file)
+            q.append((file, frames_pil, durations))
+        except Exception as e:
+            print(f"Preload error: {e}")
+
+
+def get_exit_signal():
+    """Check for exit signals from the user."""
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+            pygame.quit()
+            exit()
+
+
 def show_slideshow(files):
-    prev_frames, prev_durations = load_image_data(random.choice(files))
-    next_frames, next_durations = load_image_data(random.choice(files))
+    q = deque(maxlen=5)  # Preload up to 5 images
+
+    # Start preloading thread
+    preload_thread = threading.Thread(target=preload_worker, args=(q, files), daemon=True)
+    preload_thread.start()
+    while len(q) < 2:
+        time.sleep(1.0)
+        print(f"Waiting for preloaded images... {len(q)} loaded")
+
+    file, prev_frames, prev_durations = q.popleft()
+    file, next_frames, next_durations = q.popleft()
+
+    prev_frames = [pil_to_surface(frame) for frame in prev_frames]
+    next_frames = [pil_to_surface(frame) for frame in next_frames]
 
     prev_idx = 0
     prev_start = time.time()
 
+    # Main slideshow loop
     while True:
         if time.time() - prev_start >= DISPLAY_TIME:
             fade_start = time.time()
+
+            # Crossfade between previous and next images
             while time.time() - fade_start < FADE_TIME:
                 alpha = (time.time() - fade_start) / FADE_TIME
                 prev_frame = prev_frames[prev_idx % len(prev_frames)]
@@ -102,19 +144,23 @@ def show_slideshow(files):
                 screen.blit(blended, (0, 0))
                 pygame.display.flip()
                 clock.tick(60)
-                for event in pygame.event.get():
-                    if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                        pygame.quit()
-                        exit()
+
+                # Check for exit signal during fade
+                get_exit_signal()
+
+            # Update to next image
             prev_frames, prev_durations = next_frames, next_durations
             prev_idx = 0
             prev_start = time.time()
-            next_frames, next_durations = load_image_data(random.choice(files))
+            file, next_frames, next_durations = q.pop() if q else (None, [], [])
+            next_frames = [pil_to_surface(frame) for frame in next_frames]
 
+        # Display the current frame
         prev_frame = prev_frames[prev_idx % len(prev_frames)]
         screen.blit(prev_frame, (0, 0))
         pygame.display.flip()
 
+        # Handle frame duration
         if len(prev_frames) > 1:
             duration = prev_durations[prev_idx % len(prev_durations)]
             time.sleep(duration)
@@ -122,10 +168,8 @@ def show_slideshow(files):
         else:
             time.sleep(0.05)
 
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                pygame.quit()
-                exit()
+        # Check for exit signal
+        get_exit_signal()
 
 
 if __name__ == "__main__":
@@ -136,11 +180,7 @@ if __name__ == "__main__":
     clock = pygame.time.Clock()
 
     # Get image files
-    files = [
-        os.path.join(IMAGE_FOLDER, f)
-        for f in os.listdir(IMAGE_FOLDER)
-        if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))
-    ]
+    files = [os.path.join(IMAGE_FOLDER, f) for f in os.listdir(IMAGE_FOLDER) if f.lower().endswith((".gif"))]
 
     # Start slideshow
     show_slideshow(files)
