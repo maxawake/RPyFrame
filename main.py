@@ -117,7 +117,9 @@ def show_slideshow(files):
     # Start preloading thread
     preload_thread = threading.Thread(target=preload_worker, args=(q, files), daemon=True)
     preload_thread.start()
-    while len(q) < 5:
+
+    # Wait for at least 3 images to be preloaded
+    while len(q) < 3:
         time.sleep(1.0)
         print(f"Waiting for preloaded images... {len(q)} loaded")
 
@@ -135,7 +137,7 @@ def show_slideshow(files):
         if time.time() - prev_start >= DISPLAY_TIME:
             fade_start = time.time()
             # Precompute blended surfaces for crossfade
-            n = int(30)  # Number of frames for fade at 60 FPS
+            n = int(10)  # Number of frames for fade at 60 FPS
             blended_frames = []
             for i in range(n):
                 alpha = (i + 1) / n
@@ -150,18 +152,6 @@ def show_slideshow(files):
                 pygame.display.flip()
                 clock.tick(60)
                 get_exit_signal()
-            # Crossfade between previous and next images
-            # while time.time() - fade_start < FADE_TIME:
-            #     alpha = (time.time() - fade_start) / FADE_TIME
-            #     prev_frame = prev_frames[prev_idx % len(prev_frames)]
-            #     next_frame = next_frames[0]
-            #     blended = blend_surfaces(prev_frame, next_frame, alpha)
-            #     screen.blit(blended, (0, 0))
-            #     pygame.display.flip()
-            #     clock.tick(60)
-
-            #     # Check for exit signal during fade
-            #     get_exit_signal()
 
             # Update to next image
             prev_frames, prev_durations = next_frames, next_durations

@@ -1,0 +1,14 @@
+[Unit]
+Description=RPyFrame slideshow frame
+After=graphical.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+ExecStart=/home/max/RPyFrame/.venv/bin/python /home/max/RPyFrame/main.py
+WorkingDirectory=/home/max/RPyFrame
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target
