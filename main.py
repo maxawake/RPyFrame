@@ -9,9 +9,9 @@ import pygame
 from PIL import Image, ImageFilter
 
 # Load configuration from JSON file
-config_path = "config.json"
-if os.path.exists(config_path):
-    with open(config_path, "r") as f:
+config_path = "~/.config/rpyframe/config.json"
+if os.path.exists(os.path.expanduser(config_path)):
+    with open(os.path.expanduser(config_path), "r") as f:
         config = json.load(f)
 else:
     raise FileNotFoundError(f"Configuration file '{config_path}' not found.")
