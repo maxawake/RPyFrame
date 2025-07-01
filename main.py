@@ -135,7 +135,7 @@ def show_slideshow(files):
         if time.time() - prev_start >= DISPLAY_TIME:
             fade_start = time.time()
             # Precompute blended surfaces for crossfade
-            n = int(FADE_TIME * 60)  # Number of frames for fade at 60 FPS
+            n = int(30)  # Number of frames for fade at 60 FPS
             blended_frames = []
             for i in range(n):
                 alpha = (i + 1) / n
