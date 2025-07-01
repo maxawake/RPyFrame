@@ -1,7 +1,7 @@
 {
-    "IMAGE_FOLDER": "/home/max/Downloads/tumblr_backup_062025/media",
-    "DISPLAY_TIME_S": 10,
-    "FADE_TIME_S": 2,
-    "BLUR_RADIUS_PX": 30,
-    "TINT_OPACITY": 0.8  
+    "IMAGE_FOLDER": "/home/max/media",
+    "DISPLAY_TIME_S": 60,
+    "FADE_TIME_S": 3,
+    "BLUR_RADIUS_PX": 10,
+    "TINT_OPACITY": 0.6  
 }

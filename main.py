@@ -17,7 +17,7 @@ else:
     raise FileNotFoundError(f"Configuration file '{config_path}' not found.")
 
 # CONFIG
-IMAGE_FOLDER = config.get("IMAGE_FOLDER", "/home/max/Downloads/tumblr_backup_062025/media")
+IMAGE_FOLDER = config.get("IMAGE_FOLDER", "/home/max/media")
 DISPLAY_TIME = config.get("DISPLAY_TIME_S", 10)  # seconds per image
 FADE_TIME = config.get("FADE_TIME_S", 2)  # seconds for crossfade
 BLUR_RADIUS = config.get("BLUR_RADIUS_PX", 30)
@@ -183,7 +183,7 @@ if __name__ == "__main__":
     files = [
         os.path.join(IMAGE_FOLDER, f)
         for f in os.listdir(IMAGE_FOLDER)
-        if f.lower().endswith((".jpg", ".jpeg", ".png", ".gif"))
+        if f.lower().endswith((".jpg", ".jpeg", ".png"))
     ]
 
     # Start slideshow
