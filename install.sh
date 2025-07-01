@@ -1,4 +1,5 @@
 #!/bin/bash
+mkdir -p ~/.config/systemd/user
 cp rpyframe.service ~/.config/systemd/user/rpyframe.service
 systemctl --user daemon-reload
 systemctl --user enable rpyframe.service
