@@ -137,7 +137,7 @@ def show_slideshow(files):
         if time.time() - prev_start >= DISPLAY_TIME:
             fade_start = time.time()
             # Precompute blended surfaces for crossfade
-            n = int(10)  # Number of frames for fade at 60 FPS
+            n = int(30)  # Number of frames for fade at 60 FPS
             blended_frames = []
             for i in range(n):
                 alpha = (i + 1) / n
@@ -150,7 +150,6 @@ def show_slideshow(files):
             for blended in blended_frames:
                 screen.blit(blended, (0, 0))
                 pygame.display.flip()
-                clock.tick(60)
                 get_exit_signal()
 
             # Update to next image
