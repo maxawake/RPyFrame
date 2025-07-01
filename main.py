@@ -134,19 +134,34 @@ def show_slideshow(files):
     while True:
         if time.time() - prev_start >= DISPLAY_TIME:
             fade_start = time.time()
-
-            # Crossfade between previous and next images
-            while time.time() - fade_start < FADE_TIME:
-                alpha = (time.time() - fade_start) / FADE_TIME
+            # Precompute blended surfaces for crossfade
+            n = int(FADE_TIME * 60)  # Number of frames for fade at 60 FPS
+            blended_frames = []
+            for i in range(n):
+                alpha = (i + 1) / n
                 prev_frame = prev_frames[prev_idx % len(prev_frames)]
                 next_frame = next_frames[0]
                 blended = blend_surfaces(prev_frame, next_frame, alpha)
+                blended_frames.append(blended)
+
+            # Display precomputed blended frames
+            for blended in blended_frames:
                 screen.blit(blended, (0, 0))
                 pygame.display.flip()
                 clock.tick(60)
-
-                # Check for exit signal during fade
                 get_exit_signal()
+            # Crossfade between previous and next images
+            # while time.time() - fade_start < FADE_TIME:
+            #     alpha = (time.time() - fade_start) / FADE_TIME
+            #     prev_frame = prev_frames[prev_idx % len(prev_frames)]
+            #     next_frame = next_frames[0]
+            #     blended = blend_surfaces(prev_frame, next_frame, alpha)
+            #     screen.blit(blended, (0, 0))
+            #     pygame.display.flip()
+            #     clock.tick(60)
+
+            #     # Check for exit signal during fade
+            #     get_exit_signal()
 
             # Update to next image
             prev_frames, prev_durations = next_frames, next_durations
@@ -181,9 +196,7 @@ if __name__ == "__main__":
 
     # Get image files
     files = [
-        os.path.join(IMAGE_FOLDER, f)
-        for f in os.listdir(IMAGE_FOLDER)
-        if f.lower().endswith((".jpg", ".jpeg", ".png"))
+        os.path.join(IMAGE_FOLDER, f) for f in os.listdir(IMAGE_FOLDER) if f.lower().endswith((".jpg", ".jpeg", ".png"))
     ]
 
     # Start slideshow
